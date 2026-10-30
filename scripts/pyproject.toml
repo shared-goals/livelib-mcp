@@ -6,6 +6,9 @@ build-backend = "hatchling.build"
 name = "livelib-mcp"
 version = "0.1.0"
 description = "Anonymous read client for the LiveLib trisolaris API"
+readme = "../README.md"
+license = "MIT"
+authors = [{ name = "Shared Goals contributors" }]
 requires-python = ">=3.10"
 # No [socks] extra: the client sets trust_env=False, so it never reads ambient
 # proxy env and could never route through a SOCKS proxy — the extra is dead weight.
