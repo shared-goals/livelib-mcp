@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "livelib-mcp"
 version = "0.1.0"
 description = "Anonymous read client for the LiveLib trisolaris API"
-readme = "../README.md"
 license = "MIT"
 authors = [{ name = "Shared Goals contributors" }]
 requires-python = ">=3.10"
