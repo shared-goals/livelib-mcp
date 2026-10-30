@@ -1,0 +1,1 @@
+{"status": 200, "error": null, "payload": {"pagination": {"next_page": "/api/users/345497/quotes?limit=50&ordering=created_desc&offset=50", "previous_page": "/api/users/345497/quotes?limit=2&ordering=created_desc&offset=892"}, "data": [], "counters": {"all": 0}}}

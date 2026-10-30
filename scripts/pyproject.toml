@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livelib-mcp"
+version = "0.1.0"
+description = "Anonymous read client for the LiveLib trisolaris API"
+requires-python = ">=3.10"
+# No [socks] extra: the client sets trust_env=False, so it never reads ambient
+# proxy env and could never route through a SOCKS proxy — the extra is dead weight.
+dependencies = ["httpx>=0.27", "mcp>=2"]
+
+[dependency-groups]
+dev = [
+    "anyio>=4.15.1",
+    "pytest",
+    "ruff",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/livelib_mcp"]
+
+[project.scripts]
+livelib-mcp = "livelib_mcp.server:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
