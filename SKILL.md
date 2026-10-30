@@ -125,6 +125,13 @@ mcp_servers:
    4. Optional: cross-post reviews from Obsidian; community reading
    (friends' shelves, new reviews on a book).
 
+- README conventions (user-set): the README serves two audiences — humans
+  get Russian prose with NO tooling names (readers need an AI agent only;
+  the agent installs uv etc.; Hermes is the default with a docs link),
+  agents get a strict imperative English section at the end. Section
+  headers carry no quality labels («честно» etc.) — the content carries
+  them; honesty is the default, not a feature.
+
 Cross-repo consumers (e.g. export pipelines) should depend on this package
 via its git URL, never a machine-local path — see the gitignored AGENTS.md
 for the local linkage map.

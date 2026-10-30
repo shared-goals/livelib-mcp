@@ -112,6 +112,12 @@ POST /api/art-editions/{edition_id}/reviews
   ("The text was changed in the legacy editor. Edit it there."). The API can
   create and delete; after a legacy edit the old editor owns the record.
   DELETE still works while PATCH is locked.
+- **In-block markup is HTML, not markdown** (live-verified on a review
+  PATCH): `[text](url)` stays RAW in the rendered review; only HTML renders
+  — `<a href="https://…">text</a>` inside a paragraph block becomes a real
+  link. Same rule for quote blocks. To add a link to published text, GET the
+  current text_json, edit the block's `data.text` in place (keep all block
+  ids), PATCH with the full contract + `visibility`.
 - The review list carries engagement under `reactions` (views/likes/comments
   counts) and the reviewer's mark under `reviewer_art_rating` — never look
   for a rating field on the review record itself.
