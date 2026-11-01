@@ -75,8 +75,9 @@ DELETE /api/users/me/collections/{user_collection_art_id} → 204
 - There is no GET for user collections (write-only, 405 on GET): keep the
   returned record id if a later remove/patch is planned.
 - PATCH `/users/me/collections/{id}` `{"art_status":..., "notes":null}` → 204
-  exists in the koplugin contract; NOT implemented in the runtime (YAGNI —
-  create already accepts the target status live-verified).
+  (live-verified 2026-10-31): MOVES an existing record between shelves —
+  implemented as `update_shelf_status(collection_id, art_status)`. UPDATE is
+  preferred over delete+add: the record id, rating and read_date survive.
 - Runtime probe precedent: one curl POST with the session cookie to record the
   real 201 envelope (fixture `collection_created.json`) — contract-sniffing
   for a NEW endpoint, per the standing rule; runtime writes go through MCP.

@@ -555,6 +555,34 @@ def test_remove_from_shelf_other_errors_raise():
         TrisolarisClient(llsid="tok", transport=t).remove_from_shelf(52759726)
 
 
+# PATCH: move an existing record between shelves — UPDATE, not delete+create.
+
+
+def test_update_shelf_status_patches_and_returns_true():
+    t = fixture_transport(**{COLLECTION_DELETE_PATH: ("PATCH", "empty.json")})
+    assert (
+        TrisolarisClient(llsid="tok", transport=t).update_shelf_status(52759726, "unreads")
+        is True
+    )
+    assert urls(t) == [("PATCH", COLLECTION_DELETE_URL)]
+    assert t.requests[0].headers["cookie"] == "llsid=tok"
+    assert sent_json(t, 0) == {"art_status": "unreads", "notes": None}
+
+
+def test_update_shelf_status_rejects_bad_status_without_http_call():
+    t = fixture_transport()
+    with pytest.raises(ValueError):
+        TrisolarisClient(llsid="tok", transport=t).update_shelf_status(52759726, "reading")
+    assert t.calls == [] and t.requests == []
+
+
+def test_update_shelf_status_401_raises_auth_error():
+    t = fixture_transport(**{COLLECTION_DELETE_PATH: ("PATCH", "error_401.json")})
+    with pytest.raises(LivelibAuthError):
+        TrisolarisClient(llsid="tok", transport=t).update_shelf_status(52759726, "unreads")
+
+
+
 
 def test_unmapped_url_raises_key_error():
     t = fixture_transport()

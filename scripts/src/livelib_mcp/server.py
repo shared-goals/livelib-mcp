@@ -132,6 +132,17 @@ def remove_from_shelf(collection_id: int) -> bool:
     return _call("remove_from_shelf", lambda: _client().remove_from_shelf(collection_id))
 
 
+@SERVER.tool()
+def update_shelf_status(collection_id: int, art_status: str) -> bool:
+    """Move an existing shelf record to another shelf (art_status: one of
+    wants/readings/reads/unreads) WITHOUT deleting it — the record id, rating
+    and read_date survive. Requires the LIVELIB_LLSID env var."""
+    return _call(
+        "update_shelf_status",
+        lambda: _client().update_shelf_status(collection_id, art_status),
+    )
+
+
 def main() -> None:
     SERVER.run()
 

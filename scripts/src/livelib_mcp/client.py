@@ -274,6 +274,17 @@ class TrisolarisClient:
                 raise
         return True
 
+    def update_shelf_status(self, collection_id: int, art_status: str) -> bool:
+        """Move an existing shelf record to another shelf via PATCH; True on
+        204 (no body). UPDATE, not delete+create: the record id, read_date and
+        rating survive the move. Same body contract as koplugin documents:
+        {"art_status": <plural>, "notes": null}."""
+        if art_status not in ART_STATUSES:
+            raise ValueError(f"unknown art_status {art_status!r}; expected one of {ART_STATUSES}")
+        body = {"art_status": art_status, "notes": None}
+        self._call("PATCH", f"users/me/collections/{collection_id}", json_body=body)
+        return True
+
     def add_review(
         self,
         edition_id: int,

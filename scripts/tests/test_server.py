@@ -44,6 +44,7 @@ TOOL_NAMES = {
     "update_review",
     "add_to_shelf",
     "remove_from_shelf",
+    "update_shelf_status",
 }
 
 EDITION_URL = "art-editions/1004124394"
@@ -77,7 +78,7 @@ def raw_call(
             async with Client(SERVER, mode="legacy") as client:
                 tools = await client.list_tools()
                 assert {x.name for x in tools.tools} == TOOL_NAMES
-                assert len(tools.tools) == 13
+                assert len(tools.tools) == 14
                 raw = await client.call_tool(name, arguments)
         finally:
             srv._client = orig
@@ -258,6 +259,21 @@ def test_remove_from_shelf_404_is_wire_success():
     assert not raw.is_error
     assert wire_decode("remove_from_shelf", raw) is True
     assert urls(t) == [("DELETE", COLLECTION_DELETE_URL)]
+
+
+def test_pin_update_shelf_status():
+    t = pin(
+        "update_shelf_status",
+        {"collection_id": 52759726, "art_status": "unreads"},
+        {("PATCH", COLLECTION_DELETE_URL): "empty.json"},
+        True,
+    )
+    assert urls(t) == [("PATCH", COLLECTION_DELETE_URL)]
+    assert t.requests[0].headers["cookie"] == "llsid=test-llsid"
+    assert json.loads(t.requests[0].content.decode("utf-8")) == {
+        "art_status": "unreads",
+        "notes": None,
+    }
 
 
 def test_pin_add_quote():

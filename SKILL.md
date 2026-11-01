@@ -41,23 +41,11 @@ server in `scripts/`.
   in the constructor before any request. If a proxy is ever genuinely
   needed, add an explicit `LIVELIB_PROXY` env (YAGNI now).
 
-## MCP server (13 tools)
+## MCP server (14 tools)
 
 Run: `uv run --project <this-repo>/scripts livelib-mcp` (stdio). Example
 Hermes wiring (`mcp_servers` in config.yaml; secrets stay out of config.yaml
 and git):
-
-### Diagnosing a 'lost stdio subprocess' error
-
-When a Hermes MCP call fails with "server lost its stdio subprocess", do NOT
-conclude the server is broken and do not switch channels. Probe manually
-first: pipe `initialize` + `tools/list` (or the failing `tools/call`) as
-newline-delimited JSON-RPC into `uv run --project <scripts> livelib-mcp` with
-`LIVELIB_LLSID` and `UV_PROJECT_ENVIRONMENT` exported, stderr to a file. A
-healthy server answers both within seconds; if the manual probe succeeds, the
-failure was a one-off spawn glitch — the next gateway call just works. Measure
-startup before blaming `connect_timeout`: a warm venv starts in ~2 s, so a
-brief hang is the first-call uv sync, not a config error.
 
 ```yaml
 mcp_servers:
@@ -77,7 +65,10 @@ mcp_servers:
   `delete_quote(user_quote_id)`; reviews `add_review(edition_id, title, text,
   rating)` / `update_review(review_id, ...)` / `delete_review(review_id)`;
   shelves `add_to_shelf(edition_id, art_status)` /
-  `remove_from_shelf(collection_id)`.
+  `remove_from_shelf(collection_id)` /
+  `update_shelf_status(collection_id, art_status)` — the MOVE between shelves
+  (PATCH), preferred over delete+add because record id, rating and read_date
+  survive.
   Review rating scale is 0–10 (10 = five stars on the site); paragraphs of a
   review become separate editor blocks (blank-line split). Shelf `art_status`
   uses the plural vocabulary `wants|readings|reads|unreads`; `add_to_shelf`
@@ -89,6 +80,34 @@ mcp_servers:
 - Write contract, visibility enum (`public|friends|private`), response shapes,
   the two-level quote model and the old-backend nuance:
   references/api-contract.md.
+
+### Adding a tool to the server (workflow)
+
+1. Write the client method first, network-free tests against a REAL recorded
+   fixture — sniff the live endpoint ONCE with curl to record the envelope
+   when the contract is new, then never again (see the MCP-only runtime rule).
+2. Add the thin server tool; grep `tests/test_server.py` for `TOOL_NAMES` and
+   the `len(tools.tools)` pin BEFORE running pytest — both are hard pins that
+   fail on every new tool, and `BOOL_TOOLS` must list any bool-returning tool
+   or the wire-decode helper misreads its result.
+3. Update this SKILL.md tool list and the relevant contract section in the
+   same change — docs and code ship atomically.
+4. A restart of the Hermes gateway is required before the new tool appears as
+   `mcp__livelib__*` — and restarting the gateway kills the running session.
+   Finish all other work first, then ask the user to restart (or accept the
+   session loss); verify presence with `tool_search` afterwards.
+
+### Diagnosing a 'lost stdio subprocess' error
+
+When a Hermes MCP call fails with "server lost its stdio subprocess", do NOT
+conclude the server is broken and do not switch channels. Probe manually
+first: pipe `initialize` + `tools/list` (or the failing `tools/call`) as
+newline-delimited JSON-RPC into `uv run --project <scripts> livelib-mcp` with
+`LIVELIB_LLSID` and `UV_PROJECT_ENVIRONMENT` exported, stderr to a file. A
+healthy server answers both within seconds; if the manual probe succeeds, the
+failure was a one-off spawn glitch — the next gateway call just works. Measure
+startup before blaming `connect_timeout`: a warm venv starts in ~2 s, so a
+brief hang is the first-call uv sync, not a config error.
 
 ## Login (validated)
 
@@ -125,8 +144,7 @@ mcp_servers:
 
 - Quote text is passed through byte-exact — never strip or normalize.
 - Writes (add/delete quote, review posting, shelf changes) need the exact text
-  confirmed by
-  the user before submitting.
+  confirmed by the user before submitting.
 - Quote dedupe by text is a first-class API behavior: a new quote may attach
   to another member's canonical quote — the card then shows the original
   adder. Normal state; never alter quote text to force authorship
@@ -137,11 +155,11 @@ mcp_servers:
 
 1. MCP reads + server: DONE. 2. Write tools — quotes AND reviews
    (`add_quote`/`delete_quote`, `add_review`/`update_review`/`delete_review`):
-   DONE. 3. Shelf/collection writes (`add_to_shelf` etc.): NOT implemented —
-   the runtime cannot add a book to a shelf until the tool exists; contract is
-   documented in references/livelib-data-access.md (koplugin), never verified
-   live. 4. Optional: cross-post reviews from Obsidian; community reading
-   (friends' shelves, new reviews on a book).
+   DONE. 3. Shelf/collection writes (`add_to_shelf`/`remove_from_shelf`):
+   DONE. A PATCH `users/me/collections/{id}` status-update method is
+   documented (koplugin) but deliberately not implemented — create already
+   accepts the target status. 4. Optional: cross-post reviews from Obsidian;
+   community reading (friends' shelves, new reviews on a book).
 
 - README conventions (user-set): the README serves two audiences — humans
   get Russian prose with NO tooling names (readers need an AI agent only;
