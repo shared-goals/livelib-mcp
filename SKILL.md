@@ -1,6 +1,6 @@
 ---
 name: livelib
-version: 2.4.0
+version: 2.4.1
 author: shared-goals
 license: MIT
 tags:
@@ -89,7 +89,11 @@ mcp_servers:
 
 1. Write the client method first, network-free tests against a REAL recorded
    fixture — sniff the live endpoint ONCE with curl to record the envelope
-   when the contract is new, then never again (see the MCP-only runtime rule).
+   fixture when the contract is new, then never again (see the MCP-only runtime rule). A
+    fixture that pins live user state (shelf membership, record ids) goes stale
+    the moment the session mutates that state through the API — re-record the
+    affected fixture in the same change, or the equality pins fail on data that
+    is no longer real.
 2. Add the thin server tool; grep `tests/test_server.py` for `TOOL_NAMES` and
    the `len(tools.tools)` pin BEFORE running pytest — both are hard pins that
    fail on every new tool, and `BOOL_TOOLS` must list any bool-returning tool

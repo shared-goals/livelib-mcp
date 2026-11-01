@@ -36,7 +36,12 @@ Content-Type: application/json
 - **visibility enum is `public | friends | private`** (NOT `restricted` —
   bad value → 422, msg "Input should be 'public', 'friends' or 'private'").
 - The 201 response carries ONLY the new user-quote id — NO canonical/dedupe
-  fields. Discover dedupe by reading the quote back.
+  fields. Discover dedupe by reading the quote back. The runtime add_quote
+  tool does that read-back itself (GET users/me/quotes newest-first, matched
+  by id) and returns {"id": user_quote_id, "url": canonical public page};
+  a read-back miss degrades to {"id": ...} with no invented url. The public
+  page id is the CANONICAL quote id and differs from the user-quote id
+  (live pair 2026-10-31: user-quote 25819315 → canonical 49581199).
 - Quote text passes through byte-exact; never strip/normalize.
 - Server adds `tunes:{}` itself.
 
@@ -124,7 +129,8 @@ POST /api/art-editions/{edition_id}/reviews
   line breaks WITHIN one block (`\n`) are preserved in the rendered text.
 - DELETE: `DELETE /api/reviews/{id}` → 204 (NOT `/users/me/reviews/...` —
   that path is 404). DELETE works even while PATCH is locked (both
-  live-verified).
+  live-verified). Reviews are SINGLE-level: the POST id IS the public page id
+  (unlike quotes) — add_review returns {"id", "url"} with the same id.
 - UPDATE: `PATCH /api/reviews/{id}` → 204 with NO body (not 200+payload).
   Body = the full add_review contract PLUS the REQUIRED `visibility`
   ("public"). **Prefer update over delete+recreate once a review has
@@ -145,3 +151,8 @@ POST /api/art-editions/{edition_id}/reviews
 - The review list carries engagement under `reactions` (views/likes/comments
   counts) and the reviewer's mark under `reviewer_art_rating` — never look
   for a rating field on the review record itself.
+- The review record's author object is `reviewer` (NOT `user`): filter
+  «my reviews of this edition» by `reviewer.id`. Anonymous public reviews of
+  an edition live at `art-editions/{id}/reviews?limit=&offset=` — envelope
+  with `payload.data`, `counters.all`, `pagination.next_page`, same shape as
+  the quotes page.

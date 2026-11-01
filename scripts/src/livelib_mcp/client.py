@@ -220,10 +220,15 @@ class TrisolarisClient:
         return body
 
     def add_quote(self, edition_id: int, text: str, visibility: str = "public") -> dict:
-        """Add a quote to an edition; returns payload.data ({"id": user_quote_id}).
+        """Add a quote to an edition; returns {"id": user_quote_id, "url":
+        https://www.livelib.ru/quote/<canonical_id>}.
 
         `text` goes out byte-exact — no strip, no normalization. The editor block
-        id is generated here; the API response carries only the new user-quote id.
+        id is generated here. Quotes are TWO-level: the 201 response carries
+        only the new user-quote id, while the PUBLIC page lives under the
+        canonical quote id — discovered by reading the new record back
+        (users/me/quotes, newest first, matched by id). The url is the short
+        canonical form (the redirect appends the slug).
         """
         if visibility not in self.visibilities:
             raise ValueError(
@@ -237,9 +242,23 @@ class TrisolarisClient:
             },
             "visibility": visibility,
         }
-        return self._payload_of(
+        data = self._payload_of(
             "POST", f"art-editions/{edition_id}/quotes", json_body=body
         )["payload"]["data"]
+        user_quote_id = data["id"]
+        records = self._payload(
+            "users/me/quotes?limit=1&ordering=created_desc"
+        )["data"]
+        record = next((r for r in records if r.get("id") == user_quote_id), None)
+        if record is None or not ((record.get("quote") or {}).get("quote_id")):
+            # Read-back came up empty (pagination hiccup, antifrog pause, or a
+            # schema drift) — the created id is still the truth, just without
+            # the canonical url.
+            return {"id": user_quote_id}
+        return {
+            "id": user_quote_id,
+            "url": f"https://www.livelib.ru/quote/{record['quote']['quote_id']}",
+        }
 
     def delete_quote(self, user_quote_id: int) -> bool:
         """Delete one of the caller's own quotes. True on 204; any other status
@@ -294,7 +313,8 @@ class TrisolarisClient:
         *,
         has_spoilers: bool = False,
     ) -> dict:
-        """Post a review of an edition; returns payload.data ({"id": review_id}.
+        """Post a review of an edition; returns {"id": review_id, "url":
+        https://www.livelib.ru/review/<id>}.
 
         Contract (sniffed live 2026-10-29): title, text_json, rating, emotions,
         has_spoilers are ALL required at once. **Rating scale is 0-10** (it
@@ -320,9 +340,16 @@ class TrisolarisClient:
             "emotions": [],
             "has_spoilers": bool(has_spoilers),
         }
-        return self._payload_of(
+        data = self._payload_of(
             "POST", f"art-editions/{edition_id}/reviews", json_body=body
         )["payload"]["data"]
+        review_id = data["id"]
+        # Reviews are single-level: the id the POST returns IS the public page
+        # id (unlike quotes, which are two-level) — same {"id", "url"} shape.
+        return {
+            "id": review_id,
+            "url": f"https://www.livelib.ru/review/{review_id}",
+        }
 
     def delete_review(self, review_id: int) -> bool:
         """Delete one of the caller's own reviews. True on 204. The path is the

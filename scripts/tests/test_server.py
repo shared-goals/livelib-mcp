@@ -309,8 +309,10 @@ def test_pin_update_shelf_status():
 
 
 def test_pin_add_quote():
-    url = f"{BASE}/{ADD_URL}"
-    mapping = {("POST", url): "quote_created.json"}
+    mapping = {
+        ("POST", f"{BASE}/{ADD_URL}"): "quote_created.json",
+        ("GET", f"{BASE}/{tc.READBACK_URL}"): "user_quote_readback.json",
+    }
     expected = tc.TrisolarisClient(transport=tc.FixtureTransport(mapping)).add_quote(
         1004124394, "Текст цитаты", visibility="friends"
     )
@@ -320,8 +322,9 @@ def test_pin_add_quote():
         mapping,
         expected,
     )
-    assert expected == {"id": 25804270}  # only the user-quote id; no invented fields
-    assert urls(t) == [("POST", url)]
+    # read-back miss (fixture ids differ) -> the bare id without an invented url
+    assert expected == {"id": 25804270}
+    assert urls(t) == [("POST", f"{BASE}/{ADD_URL}"), ("GET", f"{BASE}/{tc.READBACK_URL}")]
     assert t.requests[0].headers["cookie"] == "llsid=test-llsid"
     sent = json.loads(t.requests[0].content.decode("utf-8"))
     assert sent["text_json"]["editor_blocks"][0]["data"]["text"] == "Текст цитаты"
@@ -428,7 +431,8 @@ def test_add_quote_from_real_env(monkeypatch):
     monkeypatch.setenv("LIVELIB_LLSID", "env-quote-token")
     url = f"{BASE}/{ADD_URL}"
     raw, t = _call_tool_env("add_quote", {"edition_id": 1004124394, "text": "  Точность  \t", "visibility": "private"},
-                            {("POST", url): "quote_created.json"})
+                            {("POST", url): "quote_created.json",
+                             ("GET", f"{BASE}/{tc.READBACK_URL}"): "user_quote_readback.json"})
     assert not raw.is_error, raw.content
     assert tc.read_body(raw) == {"id": 25804270}
     req = t.requests[0]

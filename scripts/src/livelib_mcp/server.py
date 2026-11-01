@@ -55,7 +55,8 @@ def get_shelf(uid: int, shelf: str) -> dict:
 @SERVER.tool()
 def add_review(edition_id: int, title: str, text: str, rating: int = 10, has_spoilers: bool = False) -> dict:
     """Post a review of an edition (rating 0-10, 10 = five stars on the site).
-    Requires the LIVELIB_LLSID env var; returns the created review id."""
+    Requires the LIVELIB_LLSID env var; returns {"id": review_id, "url":
+    public page} — reviews are single-level, the id IS the page id."""
     return _call("add_review", lambda: _client().add_review(
         edition_id, title, text, rating, has_spoilers=has_spoilers))
 
@@ -119,7 +120,8 @@ def search_editions(query: str, limit: int = 10) -> list[dict]:
 def add_quote(edition_id: int, text: str, visibility: str = "public") -> dict:
     """Add a quote to a LiveLib edition. Requires the LIVELIB_LLSID env var
     (livelib.ru session cookie value); an anonymous call gets a 401 from the
-    API. Returns the created user-quote id as {"id": ...}."""
+    API. Returns {"id": user_quote_id, "url": canonical public page} — the
+    url id differs from id (quotes are two-level)."""
     return _call("add_quote", lambda: _client().add_quote(edition_id, text, visibility))
 
 

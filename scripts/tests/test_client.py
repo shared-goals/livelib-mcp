@@ -353,18 +353,25 @@ def test_401_raises_auth_error_with_envelope_fields():
 
 
 ADD_URL = "art-editions/1004124394/quotes"
+ADD_URL2 = "art-editions/1016985223/quotes"
 DELETE_PATH = "users/me/quotes/25804270"
 CREATED_URL = f"{BASE}/{ADD_URL}"
 DELETE_URL = f"{BASE}/{DELETE_PATH}"
 
 
+READBACK_URL = "users/me/quotes?limit=1&ordering=created_desc"
+
+
 def test_add_quote_creates_and_returns_payload_data():
-    t = fixture_transport(**{ADD_URL: ("POST", "quote_created.json")})
+    t = fixture_transport(**{
+        ADD_URL: ("POST", "quote_created.json"),
+        READBACK_URL: "user_quote_readback.json",
+    })
     out = TrisolarisClient(llsid="tok", transport=t).add_quote(
         1004124394, "Текст цитаты"
     )
     assert out == {"id": 25804270}
-    assert urls(t) == [("POST", CREATED_URL)]
+    assert urls(t) == [("POST", CREATED_URL), ("GET", f"{BASE}/{READBACK_URL}")]
     assert t.requests[0].headers["cookie"] == "llsid=tok"
     body = t.calls[0][2]
     assert body is not None
@@ -378,9 +385,41 @@ def test_add_quote_creates_and_returns_payload_data():
     assert bid.isascii() and all(ch.isalnum() for ch in bid)
 
 
+def test_add_quote_readback_returns_canonical_url():
+    # The REAL pair recorded live 2026-10-31: user-quote 25819315 created, the
+    # read-back finds it newest-first and hands out the CANONICAL quote page
+    # (a different id — quotes are two-level, unlike reviews).
+    t = fixture_transport(**{
+        ADD_URL2: ("POST", "quote_created_25819315.json"),
+        READBACK_URL: "user_quote_readback.json",
+    })
+    out = TrisolarisClient(llsid="tok", transport=t).add_quote(1016985223, "текст")
+    assert out == {
+        "id": 25819315,
+        "url": "https://www.livelib.ru/quote/49581199",
+    }
+    assert urls(t) == [("POST", f"{BASE}/{ADD_URL2}"), ("GET", f"{BASE}/{READBACK_URL}")]
+
+
+def test_add_quote_readback_miss_falls_back_to_bare_id():
+    # quote_created.json carries id 25804270 while the recorded read-back page
+    # (the real newest record) is 25819315 — no match, no invented url.
+    t = fixture_transport(**{
+        ADD_URL: ("POST", "quote_created.json"),
+        READBACK_URL: "user_quote_readback.json",
+    })
+    out = TrisolarisClient(llsid="tok", transport=t).add_quote(1004124394, "текст")
+    assert out == {"id": 25804270}
+    assert "url" not in out
+    assert len(t.calls) == 2  # the read-back happened, its miss is not an error
+
+
 def test_add_quote_text_is_byte_exact():
     raw = "  Отличаются  только  пробелы\t\n"
-    t = fixture_transport(**{ADD_URL: ("POST", "quote_created.json")})
+    t = fixture_transport(**{
+        ADD_URL: ("POST", "quote_created.json"),
+        READBACK_URL: "user_quote_readback.json",
+    })
     TrisolarisClient(llsid="tok", transport=t).add_quote(
         1004124394, raw, visibility="friends"
     )
@@ -392,7 +431,10 @@ def test_add_quote_text_is_byte_exact():
 def test_add_quote_block_id_differs_per_call():
     ids = []
     for _ in range(2):
-        t = fixture_transport(**{ADD_URL: ("POST", "quote_created.json")})
+        t = fixture_transport(**{
+            ADD_URL: ("POST", "quote_created.json"),
+            READBACK_URL: "user_quote_readback.json",
+        })
         TrisolarisClient(llsid="tok", transport=t).add_quote(1004124394, "раз")
         ids.append(sent_json(t, 0)["text_json"]["editor_blocks"][0]["id"])
     assert ids[0] != ids[1]
@@ -1004,7 +1046,8 @@ def test_add_review_posts_full_contract_and_returns_id():
     })
     c = TrisolarisClient(transport=t)
     out = c.add_review(1001616054, "Заголовок", "Текст рецензии.", rating=10)
-    assert out == {"id": 6413020}
+    # Reviews are single-level: the POST id IS the public page id.
+    assert out == {"id": 6413020, "url": "https://www.livelib.ru/review/6413020"}
     method, url, _body = t.calls[0]
     assert (method, url) == ("POST", f"{BASE}/art-editions/1001616054/reviews")
     body = sent_json(t)
