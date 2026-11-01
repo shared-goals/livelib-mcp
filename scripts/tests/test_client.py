@@ -809,7 +809,7 @@ def test_default_transport_retries_transport_error(monkeypatch):
 
 
 def test_default_transport_ignores_hostile_proxy_env(monkeypatch):
-    """The air-laptop crash: an ambient no_proxy/ALL_PROXY entry with an IDN
+    """A recorded crash: an ambient no_proxy/ALL_PROXY entry with an IDN
     wildcard (`*.рф`) made httpx crash with InvalidURL: Invalid IDNA hostname
     IN THE CONSTRUCTOR — before any request. trust_env=False must always be
     passed, so the client never depends on the host's proxy bypass list."""
