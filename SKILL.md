@@ -160,6 +160,10 @@ brief hang is the first-call uv sync, not a config error.
 - User-set shelf semantics: `unreads` = «не дочитал» (partially read), not
   «to read» — «to read» is `wants`. Never normalize these onto each other.
 - Quote text is passed through byte-exact — never strip or normalize.
+- NEVER cite a POST-returned id as a public URL. Quotes are two-level: the
+  created user-quote id is NOT the page id — take the canonical URL from the
+  add_quote result's `url` field (or read the record back). Reviews are
+  single-level; their POST id IS the page id.
 - Writes (add/delete quote, review posting, shelf changes) need the exact text
   confirmed by the user before submitting.
 - Quote dedupe by text is a first-class API behavior: a new quote may attach
