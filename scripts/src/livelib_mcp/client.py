@@ -15,6 +15,7 @@ import httpx
 API_BASE = "https://beta.api.livelib.ru/trisolaris/api"
 USER_AGENT = "livelib-mcp/0.1 (+https://github.com/shared-goals/livelib-mcp)"
 SHELVES = ("reads", "unreads", "wants", "readings")
+ART_STATUSES = ("wants", "readings", "reads", "unreads")
 VISIBILITIES = ("public", "friends", "private")
 BLOCK_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 BLOCK_ID_LEN = 10
@@ -244,6 +245,33 @@ class TrisolarisClient:
         """Delete one of the caller's own quotes. True on 204; any other status
         (e.g. 404 — already gone) raises, so the caller decides."""
         self._call("DELETE", f"users/me/quotes/{user_quote_id}")
+        return True
+
+    def add_to_shelf(self, edition_id: int, art_status: str = "readings") -> dict:
+        """Put an edition on one of the caller's shelves (wants/readings/reads/
+        unreads, the plural art_status vocabulary); returns payload.data —
+        {"user_collection_art_id": <collection record id>}.
+
+        Contract (documented from advokatb/livelib.koplugin, POST shape
+        live-verified 2026-10-31): POST /users/me/collections with the
+        edition id and target status in ONE call → 201 envelope. There is no
+        GET for user collections (write-only, 405 on GET), so the caller is
+        expected to keep the returned record id for later updates/removal.
+        """
+        if art_status not in ART_STATUSES:
+            raise ValueError(f"unknown art_status {art_status!r}; expected one of {ART_STATUSES}")
+        body = {"art_edition_id": int(edition_id), "art_status": art_status}
+        return self._payload_of("POST", "users/me/collections", json_body=body)["payload"]["data"]
+
+    def remove_from_shelf(self, collection_id: int) -> bool:
+        """Delete one of the caller's shelf records. True on 204; a 404 means
+        the record is already gone and is treated as success (per the
+        documented contract). Any other status raises."""
+        try:
+            self._call("DELETE", f"users/me/collections/{collection_id}")
+        except LivelibApiError as exc:
+            if exc.status != 404:
+                raise
         return True
 
     def add_review(

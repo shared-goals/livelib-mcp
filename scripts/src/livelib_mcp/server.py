@@ -22,7 +22,7 @@ SERVER = MCPServer(
     "livelib",
     instructions="LiveLib book data via the trisolaris API: edition cards, "
     "quotes, reviews, shelves, and search (anonymous), plus adding and deleting "
-    "your own quotes (requires the LIVELIB_LLSID env var).",
+    "your own quotes and shelf records (requires the LIVELIB_LLSID env var).",
 )
 
 
@@ -114,6 +114,22 @@ def delete_quote(user_quote_id: int) -> bool:
     (livelib.ru session cookie value). True on success; a quote that is not
     found, or is not yours, is reported as an error."""
     return _call("delete_quote", lambda: _client().delete_quote(user_quote_id))
+
+
+@SERVER.tool()
+def add_to_shelf(edition_id: int, art_status: str = "readings") -> dict:
+    """Put a book on one of your shelves: art_status is one of
+    wants/readings/reads/unreads. Requires the LIVELIB_LLSID env var; returns
+    the created collection record id as {"user_collection_art_id": ...}."""
+    return _call("add_to_shelf", lambda: _client().add_to_shelf(edition_id, art_status))
+
+
+@SERVER.tool()
+def remove_from_shelf(collection_id: int) -> bool:
+    """Remove a book from your shelves by its collection record id (the
+    user_collection_art_id add_to_shelf returned). Requires the LIVELIB_LLSID
+    env var. True on success — an already-removed record also counts."""
+    return _call("remove_from_shelf", lambda: _client().remove_from_shelf(collection_id))
 
 
 def main() -> None:

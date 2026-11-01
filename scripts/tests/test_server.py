@@ -42,12 +42,14 @@ TOOL_NAMES = {
     "add_review",
     "delete_review",
     "update_review",
+    "add_to_shelf",
+    "remove_from_shelf",
 }
 
 EDITION_URL = "art-editions/1004124394"
 
 LIST_TOOLS = {"get_quotes", "get_reviews", "search_editions"}
-BOOL_TOOLS = {"delete_quote"}  # bool returns are readable only via structuredContent
+BOOL_TOOLS = {"delete_quote", "remove_from_shelf"}  # bool returns are readable only via structuredContent
 
 
 def raw_call(
@@ -75,7 +77,7 @@ def raw_call(
             async with Client(SERVER, mode="legacy") as client:
                 tools = await client.list_tools()
                 assert {x.name for x in tools.tools} == TOOL_NAMES
-                assert len(tools.tools) == 11
+                assert len(tools.tools) == 13
                 raw = await client.call_tool(name, arguments)
         finally:
             srv._client = orig
@@ -144,7 +146,7 @@ def pin(name, arguments, mapping, expected) -> tc.FixtureTransport:
 # ---------------------------------------------------------------------------
 
 
-def test_tools_list_exposes_all_eleven_names():
+def test_tools_list_exposes_all_thirteen_names():
     raw, _ = via_mcp("get_edition", {"edition_id": 1004124394},
                      {f"{BASE}/{EDITION_URL}": "edition_1004124394.json"})
     assert wire_decode("get_edition", raw)["id"] == 1004124394  # tools/list asserted in via_mcp
@@ -210,6 +212,52 @@ def test_pin_search_editions():
 
 ADD_URL = "art-editions/1004124394/quotes"
 DELETE_URL = "users/me/quotes/25804270"
+COLLECTIONS_URL = f"{BASE}/users/me/collections"
+COLLECTION_DELETE_URL = f"{BASE}/users/me/collections/52759726"
+
+
+def test_pin_add_to_shelf():
+    mapping = {("POST", COLLECTIONS_URL): "collection_created.json"}
+    expected = tc.TrisolarisClient(transport=tc.FixtureTransport(mapping)).add_to_shelf(
+        1016985223, art_status="readings"
+    )
+    t = pin(
+        "add_to_shelf",
+        {"edition_id": 1016985223, "art_status": "readings"},
+        mapping,
+        expected,
+    )
+    assert expected == {"user_collection_art_id": 52759726}  # no invented fields
+    assert urls(t) == [("POST", COLLECTIONS_URL)]
+    assert t.requests[0].headers["cookie"] == "llsid=test-llsid"
+    assert json.loads(t.requests[0].content.decode("utf-8")) == {
+        "art_edition_id": 1016985223,
+        "art_status": "readings",
+    }
+
+
+def test_pin_remove_from_shelf():
+    t = pin(
+        "remove_from_shelf",
+        {"collection_id": 52759726},
+        {("DELETE", COLLECTION_DELETE_URL): "empty.json"},
+        True,
+    )
+    assert urls(t) == [("DELETE", COLLECTION_DELETE_URL)]
+    assert t.requests[0].headers["cookie"] == "llsid=test-llsid"
+
+
+def test_remove_from_shelf_404_is_wire_success():
+    # Unlike delete_quote, an already-removed collection record is a success:
+    # True crosses the wire, no is_error, exactly one DELETE issued.
+    raw, t = raw_call(
+        "remove_from_shelf",
+        {"collection_id": 52759726},
+        {("DELETE", COLLECTION_DELETE_URL): "error_404.json"},
+    )
+    assert not raw.is_error
+    assert wire_decode("remove_from_shelf", raw) is True
+    assert urls(t) == [("DELETE", COLLECTION_DELETE_URL)]
 
 
 def test_pin_add_quote():

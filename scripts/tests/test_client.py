@@ -494,6 +494,68 @@ def test_delete_quote_404_raises_api_error():
     assert not isinstance(ei.value, LivelibAuthError)
 
 
+# ---------------------------------------------------------------------------
+# Writes: add_to_shelf / remove_from_shelf (user collections).
+# ---------------------------------------------------------------------------
+
+
+COLLECTIONS_URL = f"{BASE}/users/me/collections"
+COLLECTION_DELETE_PATH = "users/me/collections/52759726"
+COLLECTION_DELETE_URL = f"{BASE}/{COLLECTION_DELETE_PATH}"
+
+
+def test_add_to_shelf_creates_and_returns_collection_id():
+    t = fixture_transport(**{"users/me/collections": ("POST", "collection_created.json")})
+    out = TrisolarisClient(llsid="tok", transport=t).add_to_shelf(1016985223)
+    assert out == {"user_collection_art_id": 52759726}
+    assert urls(t) == [("POST", COLLECTIONS_URL)]
+    assert t.requests[0].headers["cookie"] == "llsid=tok"
+    assert sent_json(t, 0) == {"art_edition_id": 1016985223, "art_status": "readings"}
+
+
+def test_add_to_shelf_accepts_each_art_status():
+    for art_status in ("wants", "readings", "reads", "unreads"):
+        t = fixture_transport(**{"users/me/collections": ("POST", "collection_created.json")})
+        TrisolarisClient(llsid="tok", transport=t).add_to_shelf(1, art_status)
+        assert sent_json(t, 0)["art_status"] == art_status
+
+
+def test_add_to_shelf_rejects_bad_status_without_http_call():
+    # The note vocabulary singular ("reading") is NOT valid — the plural
+    # art_status one is; a bad value must never reach the wire.
+    t = fixture_transport()
+    with pytest.raises(ValueError):
+        TrisolarisClient(llsid="tok", transport=t).add_to_shelf(1016985223, "reading")
+    assert t.calls == [] and t.requests == []
+
+
+def test_add_to_shelf_401_raises_auth_error():
+    t = fixture_transport(**{"users/me/collections": ("POST", "error_401.json")})
+    with pytest.raises(LivelibAuthError):
+        TrisolarisClient(transport=t).add_to_shelf(1016985223)
+
+
+def test_remove_from_shelf_204_returns_true():
+    t = fixture_transport(**{COLLECTION_DELETE_PATH: ("DELETE", "empty.json")})
+    assert TrisolarisClient(llsid="tok", transport=t).remove_from_shelf(52759726) is True
+    assert urls(t) == [("DELETE", COLLECTION_DELETE_URL)]
+    assert t.requests[0].headers["cookie"] == "llsid=tok"
+
+
+def test_remove_from_shelf_404_is_success():
+    # Per the documented contract: already gone = success, not an error.
+    t = fixture_transport(**{COLLECTION_DELETE_PATH: ("DELETE", "error_404.json")})
+    assert TrisolarisClient(llsid="tok", transport=t).remove_from_shelf(52759726) is True
+    assert len(t.calls) == 1  # no retry after the treated-as-success 404
+
+
+def test_remove_from_shelf_other_errors_raise():
+    t = fixture_transport(**{COLLECTION_DELETE_PATH: ("DELETE", "error_401.json")})
+    with pytest.raises(LivelibAuthError):
+        TrisolarisClient(llsid="tok", transport=t).remove_from_shelf(52759726)
+
+
+
 def test_unmapped_url_raises_key_error():
     t = fixture_transport()
     with pytest.raises(KeyError):

@@ -58,6 +58,29 @@ button), not you. Normal state, not an API artifact (sampled recent profiles
 routinely reference other users' canonicals, including different editions).
 Card authorship cannot be forced without altering the text — never do that.
 
+## Collection write contract (user shelves — live-verified POST 2026-10-31)
+
+```
+POST /api/users/me/collections
+Cookie: llsid=<LIVELIB_LLSID>
+{"art_edition_id": <edition_id>, "art_status": "wants|readings|reads|unreads"}
+→ 201 {"status":201,"error":null,"payload":{"data":{"user_collection_art_id":<id>}}}
+
+DELETE /api/users/me/collections/{user_collection_art_id} → 204
+  (404 = already gone — treated as success by remove_from_shelf)
+```
+
+- `art_status` is the PLURAL vocabulary (`wants|readings|reads|unreads`),
+  distinct from the note vocabulary — same rule as the shelf slugs.
+- There is no GET for user collections (write-only, 405 on GET): keep the
+  returned record id if a later remove/patch is planned.
+- PATCH `/users/me/collections/{id}` `{"art_status":..., "notes":null}` → 204
+  exists in the koplugin contract; NOT implemented in the runtime (YAGNI —
+  create already accepts the target status live-verified).
+- Runtime probe precedent: one curl POST with the session cookie to record the
+  real 201 envelope (fixture `collection_created.json`) — contract-sniffing
+  for a NEW endpoint, per the standing rule; runtime writes go through MCP.
+
 ## Old site/app = old backend (confirmed live 2026-10-28)
 
 Quotes created via the beta trisolaris API do NOT show as "in my collection"

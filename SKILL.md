@@ -1,6 +1,6 @@
 ---
 name: livelib
-version: 2.2.0
+version: 2.3.0
 author: shared-goals
 license: MIT
 tags:
@@ -41,11 +41,23 @@ server in `scripts/`.
   in the constructor before any request. If a proxy is ever genuinely
   needed, add an explicit `LIVELIB_PROXY` env (YAGNI now).
 
-## MCP server (11 tools)
+## MCP server (13 tools)
 
 Run: `uv run --project <this-repo>/scripts livelib-mcp` (stdio). Example
 Hermes wiring (`mcp_servers` in config.yaml; secrets stay out of config.yaml
 and git):
+
+### Diagnosing a 'lost stdio subprocess' error
+
+When a Hermes MCP call fails with "server lost its stdio subprocess", do NOT
+conclude the server is broken and do not switch channels. Probe manually
+first: pipe `initialize` + `tools/list` (or the failing `tools/call`) as
+newline-delimited JSON-RPC into `uv run --project <scripts> livelib-mcp` with
+`LIVELIB_LLSID` and `UV_PROJECT_ENVIRONMENT` exported, stderr to a file. A
+healthy server answers both within seconds; if the manual probe succeeds, the
+failure was a one-off spawn glitch — the next gateway call just works. Measure
+startup before blaming `connect_timeout`: a warm venv starts in ~2 s, so a
+brief hang is the first-call uv sync, not a config error.
 
 ```yaml
 mcp_servers:
@@ -63,9 +75,13 @@ mcp_servers:
 - Authenticated writes (need the `LIVELIB_LLSID` env — the raw `llsid` session
   cookie value): quotes `add_quote(edition_id, text, visibility="public")` /
   `delete_quote(user_quote_id)`; reviews `add_review(edition_id, title, text,
-  rating)` / `update_review(review_id, ...)` / `delete_review(review_id)`.
+  rating)` / `update_review(review_id, ...)` / `delete_review(review_id)`;
+  shelves `add_to_shelf(edition_id, art_status)` /
+  `remove_from_shelf(collection_id)`.
   Review rating scale is 0–10 (10 = five stars on the site); paragraphs of a
-  review become separate editor blocks (blank-line split).
+  review become separate editor blocks (blank-line split). Shelf `art_status`
+  uses the plural vocabulary `wants|readings|reads|unreads`; `add_to_shelf`
+  returns the collection record id that `remove_from_shelf` needs.
 - **MCP-only runtime rule (user directive)**: in the agent runtime, write
   operations go through the MCP tools ONLY — curl/urllib are contract-sniffing
   tools used once when discovering a NEW endpoint's shape, never the runtime
@@ -108,7 +124,8 @@ mcp_servers:
 ## Standing rules
 
 - Quote text is passed through byte-exact — never strip or normalize.
-- Writes (add/delete quote, review posting) need the exact text confirmed by
+- Writes (add/delete quote, review posting, shelf changes) need the exact text
+  confirmed by
   the user before submitting.
 - Quote dedupe by text is a first-class API behavior: a new quote may attach
   to another member's canonical quote — the card then shows the original
@@ -120,9 +137,10 @@ mcp_servers:
 
 1. MCP reads + server: DONE. 2. Write tools — quotes AND reviews
    (`add_quote`/`delete_quote`, `add_review`/`update_review`/`delete_review`):
-   DONE. 3. Collection write contracts documented in
-   references/livelib-data-access.md (koplugin) — unused by the runtime.
-   4. Optional: cross-post reviews from Obsidian; community reading
+   DONE. 3. Shelf/collection writes (`add_to_shelf` etc.): NOT implemented —
+   the runtime cannot add a book to a shelf until the tool exists; contract is
+   documented in references/livelib-data-access.md (koplugin), never verified
+   live. 4. Optional: cross-post reviews from Obsidian; community reading
    (friends' shelves, new reviews on a book).
 
 - README conventions (user-set): the README serves two audiences — humans
