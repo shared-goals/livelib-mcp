@@ -471,6 +471,48 @@ class TrisolarisClient:
     def get_reviews(self, uid: int) -> list[dict]:
         return self._walk(f"users/{uid}/reviews", limit=50)
 
+    def get_user_marks(self, uid: int, edition_id: int) -> dict:
+        """Where ONE edition sits on the user's shelves: one entry per shelf it
+        appears on, {"shelf", "collection_id"} — duplicate re-marks of the same
+        edition on one shelf are deduped (first record wins, same rule as
+        get_shelf). The read-only twin of the collection writes: there is no
+        GET for user collections, so the four /arts/* lists are walked.
+        """
+        marks = []
+        for shelf in SHELVES:
+            found = False
+            offset = 0
+            while True:
+                payload = self._shelf_page(uid, shelf, offset)
+                data = payload["data"]
+                for mark in data:
+                    if (mark.get("art_edition") or {}).get("id") != edition_id:
+                        continue
+                    if not found:
+                        marks.append({"shelf": shelf, "collection_id": mark.get("id")})
+                        found = True
+                next_offset = _next_offset(payload)
+                if next_offset is None or not data:
+                    break
+                offset = next_offset
+        return {"edition_id": edition_id, "marks": marks}
+
+    def get_edition_reviews(
+        self, edition_id: int, *, limit: int = 50, offset: int = 0
+    ) -> dict:
+        """One page of PUBLIC reviews of an edition, plus total count and next
+        offset — same shape as get_edition_quotes. This is where a check «does
+        THIS book have a review (mine or anyone's)» goes; the user-wide walk
+        (get_reviews) answers profile-level questions instead."""
+        payload = self._payload(
+            f"art-editions/{edition_id}/reviews?limit={limit}&offset={offset}"
+        )
+        return {
+            "reviews": payload["data"],
+            "counters_all": (payload.get("counters") or {}).get("all", 0),
+            "next_offset": _next_offset(payload),
+        }
+
     def search_editions(self, query: str, *, limit: int = 10) -> list[dict]:
         """Search; returns the art_edition records (mixed-type results carry
         their instance under `instance`, other types are not editions)."""

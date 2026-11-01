@@ -95,6 +95,21 @@ def get_reviews(uid: int) -> list[dict]:
 
 
 @SERVER.tool()
+def get_user_marks(uid: int, edition_id: int) -> dict:
+    """Which shelves of user uid hold ONE book (edition_id): one entry per
+    shelf, each carrying the collection record id used by the shelf-write
+    tools. Duplicate re-marks are deduped."""
+    return _call("get_user_marks", lambda: _client().get_user_marks(uid, edition_id))
+
+
+@SERVER.tool()
+def get_edition_reviews(edition_id: int, limit: int = 50, offset: int = 0) -> dict:
+    """One page of public reviews of a book, plus total count and next offset."""
+    return _call("get_edition_reviews", lambda: _client().get_edition_reviews(
+        edition_id, limit=limit, offset=offset))
+
+
+@SERVER.tool()
 def search_editions(query: str, limit: int = 10) -> list[dict]:
     """Search LiveLib for book editions matching a query; returns edition records."""
     return _call("search_editions", lambda: _client().search_editions(query, limit=limit))

@@ -1,6 +1,6 @@
 ---
 name: livelib
-version: 2.3.0
+version: 2.4.0
 author: shared-goals
 license: MIT
 tags:
@@ -41,7 +41,7 @@ server in `scripts/`.
   in the constructor before any request. If a proxy is ever genuinely
   needed, add an explicit `LIVELIB_PROXY` env (YAGNI now).
 
-## MCP server (14 tools)
+## MCP server (16 tools)
 
 Run: `uv run --project <this-repo>/scripts livelib-mcp` (stdio). Example
 Hermes wiring (`mcp_servers` in config.yaml; secrets stay out of config.yaml
@@ -57,9 +57,10 @@ mcp_servers:
       UV_PROJECT_ENVIRONMENT: <cache-path>/livelib-venv
 ```
 
-- Anonymous reads: `get_edition`, `get_shelf(uid, shelf)`,
-  `get_edition_quotes`, `get_quotes(uid)`, `get_reviews(uid)`,
-  `search_editions(query)`.
+- Anonymous reads: `get_edition`, `get_shelf(uid, shelf)`, `get_user_marks(uid,
+  edition_id)` (which shelves hold ONE book + record ids),
+  `get_edition_quotes`, `get_edition_reviews`, `get_quotes(uid)`,
+  `get_reviews(uid)`, `search_editions(query)`.
 - Authenticated writes (need the `LIVELIB_LLSID` env — the raw `llsid` session
   cookie value): quotes `add_quote(edition_id, text, visibility="public")` /
   `delete_quote(user_quote_id)`; reviews `add_review(edition_id, title, text,
@@ -73,10 +74,13 @@ mcp_servers:
   review become separate editor blocks (blank-line split). Shelf `art_status`
   uses the plural vocabulary `wants|readings|reads|unreads`; `add_to_shelf`
   returns the collection record id that `remove_from_shelf` needs.
-- **MCP-only runtime rule (user directive)**: in the agent runtime, write
-  operations go through the MCP tools ONLY — curl/urllib are contract-sniffing
-  tools used once when discovering a NEW endpoint's shape, never the runtime
-  channel. If an MCP tool is missing for an endpoint, add the tool first.
+- **MCP-only runtime rule (user directive, 2026-10-31)**: in the agent runtime
+  BOTH reads and writes go through the MCP tools ONLY — curl/urllib are
+  contract-sniffing tools used once when discovering a NEW endpoint's shape
+  (e.g. recording a fixture), never the runtime channel. If an MCP tool is
+  missing for an endpoint, add the tool first — do not route around it. Direct
+  API calls live only in pipeline code (text-forge), which owns its own
+  client.
 - Write contract, visibility enum (`public|friends|private`), response shapes,
   the two-level quote model and the old-backend nuance:
   references/api-contract.md.
@@ -142,6 +146,15 @@ brief hang is the first-call uv sync, not a config error.
 
 ## Standing rules
 
+- Shelf moves go through `update_shelf_status` (PATCH) — NEVER delete+add:
+  the collection record id, rating and read_date survive the move. delete+add
+  is only for creating/removing a record outright.
+- To move a book you must first find its current collection record id (there
+  is no GET for user collections): walk the anonymous shelves
+  `/users/{uid}/arts/{reads|readings|unreads|wants}` and match by edition id —
+  the record `id` on each mark IS the collection id for update/remove.
+- User-set shelf semantics: `unreads` = «не дочитал» (partially read), not
+  «to read» — «to read» is `wants`. Never normalize these onto each other.
 - Quote text is passed through byte-exact — never strip or normalize.
 - Writes (add/delete quote, review posting, shelf changes) need the exact text
   confirmed by the user before submitting.
@@ -155,11 +168,9 @@ brief hang is the first-call uv sync, not a config error.
 
 1. MCP reads + server: DONE. 2. Write tools — quotes AND reviews
    (`add_quote`/`delete_quote`, `add_review`/`update_review`/`delete_review`):
-   DONE. 3. Shelf/collection writes (`add_to_shelf`/`remove_from_shelf`):
-   DONE. A PATCH `users/me/collections/{id}` status-update method is
-   documented (koplugin) but deliberately not implemented — create already
-   accepts the target status. 4. Optional: cross-post reviews from Obsidian;
-   community reading (friends' shelves, new reviews on a book).
+   DONE. 3. Shelf/collection writes (`add_to_shelf`/`remove_from_shelf`/
+   `update_shelf_status`): DONE. 4. Optional: cross-post reviews from
+   Obsidian; community reading (friends' shelves, new reviews on a book).
 
 - README conventions (user-set): the README serves two audiences — humans
   get Russian prose with NO tooling names (readers need an AI agent only;

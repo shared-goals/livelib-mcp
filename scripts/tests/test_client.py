@@ -582,6 +582,75 @@ def test_update_shelf_status_401_raises_auth_error():
         TrisolarisClient(llsid="tok", transport=t).update_shelf_status(52759726, "unreads")
 
 
+# ---------------------------------------------------------------------------
+# Reads: get_user_marks / get_edition_reviews.
+# ---------------------------------------------------------------------------
+
+
+def full_shelf_mapping():
+    """The REAL recorded shelf state the fixtures pin: «Моменты счастья»
+    (1003047920) sits on unreads (record 52761076) and nowhere else; reads
+    walks 4 pages, wants 1, readings 1 (dupes fixture is pinned separately)."""
+    return {
+        f"{BASE}/users/345497/arts/reads?limit=100&offset=0": "shelf_reads.json",
+        f"{BASE}/users/345497/arts/reads?limit=100&offset=100": "shelf_reads_off100.json",
+        f"{BASE}/users/345497/arts/reads?limit=100&offset=200": "shelf_reads_off200.json",
+        f"{BASE}/users/345497/arts/reads?limit=100&offset=300": "shelf_reads_off300.json",
+        f"{BASE}/users/345497/arts/unreads?limit=100&offset=0": "shelf_unreads.json",
+        f"{BASE}/users/345497/arts/wants?limit=100&offset=0": "shelf_wants.json",
+        f"{BASE}/users/345497/arts/readings?limit=100&offset=0": "shelf_readings.json",
+    }
+
+
+def test_get_user_marks_finds_book_and_collection_id():
+    mapping = full_shelf_mapping()
+    t = FixtureTransport(mapping)
+    out = TrisolarisClient(transport=t).get_user_marks(345497, 1003047920)
+    assert out == {
+        "edition_id": 1003047920,
+        "marks": [{"shelf": "unreads", "collection_id": 52761076}],
+    }
+    # the read shelf was walked to its LAST page (374 marks, 4 pages)
+    read_pages = [u for m, u, _ in t.calls if "/arts/reads?" in u]
+    assert len(read_pages) == 4
+
+
+def test_get_user_marks_absent_book_returns_empty_marks():
+    t = FixtureTransport(full_shelf_mapping())
+    out = TrisolarisClient(transport=t).get_user_marks(345497, 9999999999)
+    assert out == {"edition_id": 9999999999, "marks": []}
+
+
+def test_get_user_marks_dedupes_remarks_first_record_wins():
+    # shelf_readings_dupes.json: edition 1004124394 was marked twice
+    # (records 47319112, 47319113) — one entry, the FIRST record id.
+    mapping = {
+        f"{BASE}/users/345497/arts/reads?limit=100&offset=0": "shelf_wants_empty_page.json",
+        f"{BASE}/users/345497/arts/unreads?limit=100&offset=0": "shelf_wants_empty_page.json",
+        f"{BASE}/users/345497/arts/wants?limit=100&offset=0": "shelf_wants_empty_page.json",
+        f"{BASE}/users/345497/arts/readings?limit=100&offset=0": "shelf_readings_dupes.json",
+    }
+    out = TrisolarisClient(transport=FixtureTransport(mapping)).get_user_marks(
+        345497, 1004124394
+    )
+    assert out == {
+        "edition_id": 1004124394,
+        "marks": [{"shelf": "readings", "collection_id": 47319112}],
+    }
+
+
+def test_get_edition_reviews_returns_page():
+    url = f"{BASE}/art-editions/1003047920/reviews?limit=50&offset=0"
+    t = FixtureTransport({url: "edition_reviews_1003047920.json"})
+    out = TrisolarisClient(transport=t).get_edition_reviews(1003047920)
+    assert len(out["reviews"]) == 3
+    assert out["counters_all"] == 3
+    assert out["next_offset"] is None
+    mine = [r for r in out["reviews"] if (r.get("reviewer") or {}).get("id") == 345497]
+    assert [r["id"] for r in mine] == [3575245]  # «Много счастья без занудства»
+
+
+
 
 
 def test_unmapped_url_raises_key_error():

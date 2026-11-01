@@ -36,6 +36,8 @@ TOOL_NAMES = {
     "get_edition_quotes",
     "get_quotes",
     "get_reviews",
+    "get_user_marks",
+    "get_edition_reviews",
     "search_editions",
     "add_quote",
     "delete_quote",
@@ -78,7 +80,7 @@ def raw_call(
             async with Client(SERVER, mode="legacy") as client:
                 tools = await client.list_tools()
                 assert {x.name for x in tools.tools} == TOOL_NAMES
-                assert len(tools.tools) == 14
+                assert len(tools.tools) == 16
                 raw = await client.call_tool(name, arguments)
         finally:
             srv._client = orig
@@ -198,6 +200,36 @@ def test_pin_get_reviews():
     expected = tc.TrisolarisClient(transport=tc.FixtureTransport(mapping)).get_reviews(345497)
     t = pin("get_reviews", {"uid": 345497}, mapping, expected)
     assert len(expected) == 2
+    assert urls(t) == [("GET", url)]
+
+
+def test_pin_get_user_marks():
+    mapping = {
+        f"{BASE}/users/345497/arts/reads?limit=100&offset=0": "shelf_wants_empty_page.json",
+        f"{BASE}/users/345497/arts/unreads?limit=100&offset=0": "shelf_unreads.json",
+        f"{BASE}/users/345497/arts/wants?limit=100&offset=0": "shelf_wants_empty_page.json",
+        f"{BASE}/users/345497/arts/readings?limit=100&offset=0": "shelf_readings.json",
+    }
+    expected = tc.TrisolarisClient(transport=tc.FixtureTransport(mapping)).get_user_marks(
+        345497, 1003047920
+    )
+    pin(
+        "get_user_marks",
+        {"uid": 345497, "edition_id": 1003047920},
+        mapping,
+        expected,
+    )
+    assert expected["marks"] == [{"shelf": "unreads", "collection_id": 52761076}]
+
+
+def test_pin_get_edition_reviews():
+    url = f"{BASE}/art-editions/1003047920/reviews?limit=50&offset=0"
+    mapping = {url: "edition_reviews_1003047920.json"}
+    expected = tc.TrisolarisClient(transport=tc.FixtureTransport(mapping)).get_edition_reviews(
+        1003047920
+    )
+    t = pin("get_edition_reviews", {"edition_id": 1003047920}, mapping, expected)
+    assert len(expected["reviews"]) == 3
     assert urls(t) == [("GET", url)]
 
 
