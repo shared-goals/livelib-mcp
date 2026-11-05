@@ -148,6 +148,11 @@ POST /api/art-editions/{edition_id}/reviews
   link. Same rule for quote blocks. To add a link to published text, GET the
   current text_json, edit the block's `data.text` in place (keep all block
   ids), PATCH with the full contract + `visibility`.
+- For `update_review` via the MCP tool, plain text with blank-line paragraph
+  separation is the right payload: the editor re-blocks it cleanly and drops
+  artifacts (empty `<p></p>`) from previous edits; the title (and public
+  slug) update in the same PATCH, rating defaults to 10 — pass the current
+  rating explicitly if it differs.
 - The review list carries engagement under `reactions` (views/likes/comments
   counts) and the reviewer's mark under `reviewer_art_rating` — never look
   for a rating field on the review record itself.

@@ -1,6 +1,6 @@
 ---
 name: livelib
-version: 2.4.1
+version: 2.4.2
 author: shared-goals
 license: MIT
 tags:
@@ -70,8 +70,7 @@ mcp_servers:
   `update_shelf_status(collection_id, art_status)` — the MOVE between shelves
   (PATCH), preferred over delete+add because record id, rating and read_date
   survive.
-  Review rating scale is 0–10 (10 = five stars on the site); paragraphs of a
-  review become separate editor blocks (blank-line split). Shelf `art_status`
+  Review rating scale is 0–10 (10 = five stars on the site). Shelf `art_status`
   uses the plural vocabulary `wants|readings|reads|unreads`; `add_to_shelf`
   returns the collection record id that `remove_from_shelf` needs.
 - **MCP-only runtime rule (user directive, 2026-10-31)**: in the agent runtime
@@ -166,11 +165,40 @@ brief hang is the first-call uv sync, not a config error.
   single-level; their POST id IS the page id.
 - Writes (add/delete quote, review posting, shelf changes) need the exact text
   confirmed by the user before submitting.
+- Review text format: pass PLAIN text with blank lines between paragraphs —
+  the editor splits them into separate blocks. Do NOT pre-wrap in `<p>` HTML:
+  the whole payload lands as ONE block with raw markup visible. Inline links
+  are the exception — they must be HTML `<a href="…">label</a>` inside the
+  paragraph text (markdown `[t](u)` stays raw). A bare `\n` inside a
+  paragraph is preserved as a line break without splitting the block.
+- Verify a write by reading back through MCP (get_edition_reviews /
+  get_quotes), never by fetching the public page — page fetches can serve a
+  cached pre-edit copy and falsely report the edit as missing.
+- Confirm the EDITION before any quote write when a book has multiple
+  LiveLib entries: `search_editions` returns same-title editions freely
+  (same book re-issued under a changed subtitle, short vs full print,
+  audio editions) and taking the first hit silently binds the quote to the
+  wrong edition — the user then has to delete and re-add everything. Verify
+  the id against the user's shelf or have the user confirm the edition URL
+  when editions share a title. Same-title hits differ by subtitle, publisher
+  and year (print vs short vs audio reissue) — compare those, and prefer the
+  edition the USER names by URL over the top search hit.
 - Quote dedupe by text is a first-class API behavior: a new quote may attach
   to another member's canonical quote — the card then shows the original
-  adder. Normal state; never alter quote text to force authorship
+  adder. Re-submitting identical text creates a second user-quote record
+  pointing at the SAME canonical quote (no duplicate on the book's quote
+  page); normal state, never alter quote text to force authorship
   (references/api-contract.md).
 - TDD: tests are network-free against real recorded fixtures.
+- Publishing hygiene for fixtures: genericize identity fields (login,
+  first_name/last_name, avatar URLs) and replace personal review prose —
+  the owner's or third parties' — with a neutral paragraph, while the
+  numeric uid, ids, URLs and pagination stay: recorded evidence may pin
+  public ids, never personal identity. Check what the tests assert
+  (ids/urls/lengths survive a scrub; identity or text assertions need
+  re-pinning) BEFORE editing fixtures, and grep with care — the owner's
+  first name matches book AUTHORS inside shelf fixtures (false
+  positives).
 
 ## Roadmap
 
